@@ -3,29 +3,56 @@ require("dotenv").config(); // Cargar variables de entorno
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const path = require("path");
+const cookieParser = require("cookie-parser");
+const jwt = require("jsonwebtoken");
 
-const app = express(); // ⚠️ Definir antes de usar
+const app = express(); // Inicializar Express
 
 // Middlewares
 app.use(express.json()); // Permite recibir datos en formato JSON
 app.use(cors()); // Habilita CORS para el frontend
+app.use(cookieParser()); // Permite leer cookies
+
+// Configurar archivos estáticos correctamente
+app.use(express.static(path.join(__dirname, "../frontend")));
 
 // Importar rutas
-const authRoutes = require("./routes/auth"); // Importar después de definir `app`
-app.use("/api/auth", authRoutes); // Ahora `app` ya está definido
+const authRoutes = require("./routes/auth");
 const productRoutes = require("./routes/products");
+
+app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 
-// Lista de productos en el backend
-const productos = [
-  { id: 1, nombre: "Laptop", precio: 1500, imagen: "img/laptop.png" },
-  { id: 2, nombre: "Mouse Gamer", precio: 350, imagen: "img/mouse.png" },
-  { id: 3, nombre: "Teclado Mecánico RGB", precio: 1200, imagen: "img/TecladoMecanicoRGB-1.png" },
-  { id: 4, nombre: "Monitor 24'' Full HD", precio: 1800, imagen: "img/monitor.png" },
-  { id: 5, nombre: "Audífonos Bluetooth", precio: 1800, imagen: "img/AudifonosInalambricosBluetooth.png" },
-  { id: 6, nombre: "Silla Gamer Ergonómica", precio: 2500, imagen: "img/sillagamerergonomica.png" },
-  { id: 7, nombre: "Tarjeta Gráfica RTX 3060", precio: 6000, imagen: "img/tarjetagraficartx3060.png" }
-];
+// Middleware de autenticación
+const authMiddleware = (req, res, next) => {
+    const token = req.cookies?.token;
+    if (!token) {
+        return res.status(401).json({ message: "No autorizado, inicia sesión" });
+    }
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = decoded;
+        next();
+    } catch (error) {
+        return res.status(401).json({ message: "Token inválido" });
+    }
+};
+
+// Rutas públicas
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "../frontend", "login.html"));
+});
+
+// Rutas protegidas
+app.get("/index", authMiddleware, (req, res) => {
+    res.sendFile(path.join(__dirname, "../frontend", "index.html"));
+});
+
+app.get("/catalogo", authMiddleware, (req, res) => {
+    res.sendFile(path.join(__dirname, "../frontend", "catalogo.html"));
+});
 
 // Conectar a MongoDB
 mongoose
@@ -39,4 +66,3 @@ mongoose
 // Iniciar servidor
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Servidor corriendo en el puerto ${PORT}`));
-
